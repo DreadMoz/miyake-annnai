@@ -146,7 +146,7 @@
     <!-- ヘッダー -->
     <header class="bg-blue-800 text-white px-4 py-3 shadow-md sticky top-0 z-50">
         <h1 class="text-base sm:text-lg font-bold text-center">三宅小学校 視察用授業案内</h1>
-        <p class="text-[11px] sm:text-xs text-center text-blue-200 mt-0.5">教室ボタン・吹き出しをタップで開閉／左右スワイプで時間、上下スワイプで階を切り替え／ピンチで拡大</p>
+        <p class="text-[11px] sm:text-xs text-center text-blue-200 mt-0.5">吹き出しをタップで開閉／スワイプ左右で時間、上下で階を切り替え</p>
     </header>
 
     <main class="p-2.5 sm:p-4 max-w-2xl mx-auto">
@@ -794,9 +794,9 @@
         // =====================================================
         // スワイプ操作
         //   左右：5時間目 ⇔ 6時間目
-        //   上下：3F → 2F → 1F → 一覧表（上へスワイプで下の項目へ、下へスワイプで上の項目へ）
+        //   上下：上へスワイプで上の階へ、下へスワイプで下の階へ（3F ⇔ 2F ⇔ 1F ⇔ 一覧表）
         //   ・地図の上ではページはスクロールしない
-        //   ・一覧表では、いちばん上までスクロールしている時だけ下スワイプで1Fに戻る
+        //   ・一覧表では上下スワイプは使わない（スクロール優先）。地図に戻るのは階のボタンで
         // =====================================================
         const VIEW_ORDER = ['3F', '2F', '1F', 'LIST'];
         const VIEW_LABEL = { '3F': '3F', '2F': '2F', '1F': '1F', 'LIST': '一覧表' };
@@ -873,11 +873,10 @@
                     switchPeriod(dx < 0 ? '6' : '5');   // 左へ→6時間目、右へ→5時間目
                 } else if (Math.abs(dy) > MIN && Math.abs(dy) > Math.abs(dx) * 1.5) {
                     if (currentMode === 'list') {
-                        // 一覧表はスクロール優先。いちばん上で下へスワイプした時だけ1Fへ
-                        if (dy > 0 && window.scrollY <= 0) switchView(-1);
+                        // 一覧表では上下スワイプは使わない（上へのスワイプが一覧表のスクロールとぶつかるため）
                         return;
                     }
-                    switchView(dy < 0 ? 1 : -1);        // 上へ→次（下の階）、下へ→前（上の階）
+                    switchView(dy < 0 ? -1 : 1);        // 上へ→上の階、下へ→下の階（1Fの下は一覧表）
                 }
             }, { passive: true });
         })();

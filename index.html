@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三宅小学校 授業案内</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+            background-color: #f3f4f6;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior: none;   /* 引っぱって再読み込み・スワイプで戻る を防ぐ */
+        }
+        html { overscroll-behavior: none; }
+
+        /* 画像マップ用のレイアウト */
+        .map-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 100%;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        .map-image {
+            width: 100%;
+            height: auto;
+            display: block;
+            min-height: 240px;
+            background-color: #f8fafc;
+        }
+
+        /* 教室ボタン（スマホでタップしやすいサイズに調整） */
+        .room-pin {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            border: 2px solid #cbd5e1;
+            color: #475569;
+            border-radius: 9999px;
+            padding: 0.25rem 0.55rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.22);
+            white-space: nowrap;
+            z-index: 10;
+            transition: transform 0.15s ease, background-color 0.2s, border-color 0.2s;
+            user-select: none;
+        }
+        @media (min-width: 640px) {
+            .room-pin {
+                padding: 0.3rem 0.65rem;
+                font-size: 0.8rem;
+            }
+        }
+        .room-pin:active {
+            transform: translate(-50%, -50%) scale(0.95);
+        }
+        .room-pin.has-class {
+            border-color: #10b981;
+            background-color: #ecfdf5;
+            color: #047857;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+        }
+        /* 吹き出しが開いている時のボタン強調 */
+        .room-pin.bubble-open {
+            background-color: #2563eb;
+            color: white;
+            border-color: #1d4ed8;
+            z-index: 25;
+        }
+
+        /* 吹き出し：文字数に応じて幅と高さを自動調整 */
+        .info-bubble {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.96);
+            border: 2px solid #3b82f6;
+            border-radius: 0.6rem;
+            padding: 0.45rem 0.55rem;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.22);
+            width: max-content;
+            min-width: 7.2rem;
+            max-width: 11.2rem;
+            word-break: break-word;
+            cursor: pointer;
+            transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease;
+            user-select: none;
+            backdrop-filter: blur(4px);
+            z-index: 50;
+        }
+        @media (min-width: 640px) {
+            .info-bubble {
+                min-width: 9rem;
+                max-width: 14rem;
+                padding: 0.55rem 0.65rem;
+            }
+        }
+        .info-bubble.is-closed {
+            display: none;
+        }
+
+        /* 来客向けご案内（応接室・トイレなど） */
+        .room-pin.info-pin.has-class { border-color: #f59e0b; background-color: #fffbeb; color: #b45309; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25); }
+        .room-pin.info-pin.bubble-open { background-color: #f59e0b; border-color: #d97706; color: white; }
+        .info-bubble.info-kind { border-color: #f59e0b; }
+
+        /* 位置調整モード */
+        .edit-pin, .edit-bubble {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            z-index: 60;
+            touch-action: none;
+            cursor: grab;
+            user-select: none;
+            white-space: nowrap;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+        .edit-pin {
+            background: #f97316; color: white;
+            border: 2px solid #c2410c; border-radius: 9999px;
+            padding: 0.2rem 0.5rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .edit-bubble {
+            width: 7.5rem; height: 3.6rem;
+            border: 2px dashed #2563eb; border-radius: 0.5rem;
+            background: rgba(219, 234, 254, 0.75); color: #1e40af;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 55;
+        }
+        .edit-pin.dragging, .edit-bubble.dragging { cursor: grabbing; outline: 3px solid #facc15; }
+
+        /* トグルスイッチの隠しラジオボタン */
+        input[type="radio"] { display: none; }
+    </style>
+</head>
+<body class="text-slate-800 pb-20">
+
+    <!-- ヘッダー -->
+    <header class="bg-blue-800 text-white px-4 py-3 shadow-md sticky top-0 z-50">
+        <h1 class="text-base sm:text-lg font-bold text-center">三宅小学校 視察用授業案内</h1>
+        <p class="text-[11px] sm:text-xs text-center text-blue-200 mt-0.5">教室ボタン・吹き出しをタップで開閉／左右スワイプで時間、上下スワイプで階を切り替え／ピンチで拡大</p>
+    </header>
+
+    <main class="p-2.5 sm:p-4 max-w-2xl mx-auto">
+
+        <!-- 時間目切り替え ＋ 吹き出しの全消し／全表示 -->
+        <div class="flex justify-center items-center gap-2 mb-3.5">
+            <div class="bg-white rounded-full p-1 shadow-sm inline-flex border border-slate-200">
+                <label class="cursor-pointer">
+                    <input type="radio" name="period" value="5" checked onchange="focusClass = null; updateView()">
+                    <div class="px-4 sm:px-6 py-1.5 sm:py-2 rounded-full transition-colors duration-200 period-btn-5 bg-blue-600 text-white text-sm sm:text-base font-bold">5時間目</div>
+                </label>
+                <label class="cursor-pointer">
+                    <input type="radio" name="period" value="6" onchange="focusClass = null; updateView()">
+                    <div class="px-4 sm:px-6 py-1.5 sm:py-2 rounded-full transition-colors duration-200 period-btn-6 text-slate-500 text-sm sm:text-base font-bold">6時間目</div>
+                </label>
+            </div>
+            <button id="btn-all-bubbles" onclick="toggleAllBubbles()" class="px-4 py-2 sm:py-2.5 rounded-full shadow-sm border border-slate-300 bg-white text-slate-700 text-xs sm:text-sm font-bold whitespace-nowrap active:bg-slate-100">全消し</button>
+        </div>
+
+        <!-- 読み込み状況のお知らせ -->
+        <p id="load-message" class="text-center text-sm font-bold text-slate-500 mb-3">授業データを読み込み中…</p>
+
+        <!-- 表示切り替え（3F / 2F / 1F / 一覧表） -->
+        <div class="flex justify-center flex-wrap gap-2 mb-3">
+            <button onclick="setFloor('3F')" id="btn-3f" class="px-4 py-1.5 bg-white border border-slate-300 rounded-full text-sm font-bold shadow-sm transition-colors">3F</button>
+            <button onclick="setFloor('2F')" id="btn-2f" class="px-4 py-1.5 bg-blue-100 border border-blue-500 text-blue-700 rounded-full text-sm font-bold shadow-sm transition-colors">2F</button>
+            <button onclick="setFloor('1F')" id="btn-1f" class="px-4 py-1.5 bg-white border border-slate-300 rounded-full text-sm font-bold shadow-sm transition-colors">1F</button>
+            <button onclick="setFloor('LIST')" id="btn-list" class="px-4 py-1.5 bg-white border border-slate-300 rounded-full text-sm font-bold shadow-sm transition-colors">一覧表</button>
+        </div>
+
+        <!-- マップビュー -->
+        <div id="view-map" class="block">
+
+            <!-- 地図コンテナ -->
+            <div id="map-container" class="mt-2" style="touch-action: pinch-zoom;">
+                <!-- 2F (デフォルト表示) -->
+                <div id="floor-2f" class="map-wrapper">
+                    <div class="relative w-full">
+                        <img data-local="2F.png" data-drive-id="1hJTnaAe-K4ALPLUvyZqwj5Rox9nWhTbV" alt="2階平面図" class="map-image">
+                    </div>
+                    <!-- 吹き出し配置用の余白 -->
+                    <div class="w-full bg-slate-50 border-t border-slate-100" style="height: 115px;"></div>
+                </div>
+
+                <!-- 3F -->
+                <div id="floor-3f" class="map-wrapper hidden">
+                    <div class="relative w-full">
+                        <img data-local="3F.png" data-drive-id="1omNsgUEtTu_TsG5y7CeJxlOfgFvRsNfI" alt="3階平面図" class="map-image">
+                    </div>
+                    <div class="w-full bg-slate-50 border-t border-slate-100" style="height: 115px;"></div>
+                </div>
+
+                <!-- 1F -->
+                <div id="floor-1f" class="map-wrapper hidden">
+                    <div class="relative w-full">
+                        <img data-local="1F.png" data-drive-id="1jH9E3cAIUmXM1EdmGEZItNXhYQV6vqTU" alt="1階平面図" class="map-image">
+                    </div>
+                    <div class="w-full bg-slate-50 border-t border-slate-100" style="height: 115px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- リストビュー -->
+        <div id="view-list" class="hidden">
+            <div class="bg-white rounded-xl shadow overflow-x-auto border border-slate-200">
+                <table class="w-full table-fixed divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="w-1/4 px-2 py-2.5 text-left text-xs font-bold text-slate-600">学級</th>
+                            <th class="w-1/4 px-2 py-2.5 text-left text-xs font-bold text-slate-600">場所</th>
+                            <th class="w-1/2 px-2 py-2.5 text-left text-xs font-bold text-slate-600">授業内容</th>
+                        </tr>
+                    </thead>
+                    <tbody id="list-body" class="bg-white divide-y divide-slate-200 text-sm"></tbody>
+                </table>
+            </div>
+            <p id="list-message" class="text-center text-sm text-slate-500 mt-3"></p>
+        </div>
+
+        <!-- 位置調整モードのパネル（EDIT_MODE = true の時だけ表示） -->
+        <div id="edit-panel" class="hidden mt-4 bg-white border-2 border-orange-400 rounded-xl p-3">
+            <div class="text-sm font-bold text-orange-700 mb-1">位置調整モード</div>
+            <div class="text-xs text-slate-600 mb-2 leading-relaxed">
+                オレンジ＝クラスボタンの位置、青い点線＝吹き出しの位置。ドラッグで動かせます。<br>
+                動かし終わったら「コピー」を押し、HTMLの <code>const LOCATIONS = { 〜 };</code> の部分を丸ごと貼り替えてください。
+            </div>
+            <div id="edit-status" class="text-xs font-bold text-slate-700 mb-2">&nbsp;</div>
+            <textarea id="edit-output" class="w-full h-48 text-[11px] font-mono border border-slate-300 rounded p-2" readonly></textarea>
+            <button onclick="copyLocations()" class="mt-2 px-4 py-1.5 bg-orange-500 text-white rounded-lg text-sm font-bold">コピー</button>
+        </div>
+
+    </main>
+
+    <!-- スワイプで切り替えた時の表示 -->
+    <div id="swipe-toast" class="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800/85 text-white text-lg font-bold px-6 py-3 rounded-2xl pointer-events-none opacity-0 transition-opacity duration-200 z-[100]"></div>
+
+    <script>
+        // =====================================================
+        // ★ 設定：授業データを読むスプレッドシート（URLの /d/〜/ と gid=〜）
+        //   見出し行：「学級｜場所｜5時間目｜場所｜6時間目」
+        //   ・「○時間目」の列の、すぐ左の「場所」がその時間の教室
+        //   ・学級が「例」で始まる行は読み飛ばす
+        //   ・教室は「１－１」「1-1」「1年1組」どれで書いてもOK
+        // =====================================================
+        const SHEET_ID = '1eXyEHJ0TaN28hEiClpk-hzFhpyaZ7lubEkse7PAbUi0';
+        const SHEET_GID = '1666003916';
+
+        // =====================================================
+        // ★ 場所の座標（平面図の上の位置。% で指定）
+        //   top / left       ：クラスボタンを置く位置
+        //   bubbleTop / Left ：吹き出しを置く位置（同じ bubbleTop の吹き出し同士は横にずらして重なりを避ける）
+        //   シートの「場所」に書いた名前と同じ名前で登録する（１－１ → 1-1 のように自動でそろえる）
+        //   ここにない場所で授業をしているクラスは、一覧表にだけ出る
+        // =====================================================
+        // ★ 位置調整モード：true にすると、全部の場所を表示してドラッグで動かせる
+        //   調整が終わったら必ず false に戻す
+        const EDIT_MODE = false;
+
+        const LOCATIONS = {
+            '1-2':           { floor: '2F', top: 98, left: 67, bubbleTop: 110, bubbleLeft: 63 },
+            '1-1':           { floor: '2F', top: 98, left: 86, bubbleTop: 110, bubbleLeft: 85 },
+            '2-1':           { floor: '2F', top: 89, left: 31, bubbleTop: 76, bubbleLeft: 34 },
+            '2-2':           { floor: '2F', top: 89, left: 12, bubbleTop: 76, bubbleLeft: 13 },
+            '3-1':           { floor: '2F', top: 53, left: 68, bubbleTop: 40, bubbleLeft: 67 },
+            '3-2':           { floor: '2F', top: 53, left: 49, bubbleTop: 40, bubbleLeft: 49 },
+            '4-1':           { floor: '2F', top: 25, left: 50, bubbleTop: 6, bubbleLeft: 49 },
+            '4-2':           { floor: '2F', top: 25, left: 31, bubbleTop: 6, bubbleLeft: 31 },
+            '5-1':           { floor: '3F', top: 88, left: 86, bubbleTop: 74, bubbleLeft: 84 },
+            '6-1':           { floor: '3F', top: 88, left: 31, bubbleTop: 74, bubbleLeft: 31 },
+            '職員室':        { floor: '1F', top: 89, left: 51, bubbleTop: 76, bubbleLeft: 51 },
+            '校長室':        { floor: '1F', top: 89, left: 81, bubbleTop: 76, bubbleLeft: 78 },
+            '保健室':        { floor: '1F', top: 52, left: 31, bubbleTop: 38, bubbleLeft: 31 },
+            '図工室':        { floor: '3F', top: 53, left: 79, bubbleTop: 40, bubbleLeft: 78 },
+            '家庭科室':      { floor: '3F', top: 53, left: 37, bubbleTop: 40, bubbleLeft: 37 },
+            '音楽室':        { floor: '3F', top: 53, left: 15, bubbleTop: 40, bubbleLeft: 14 },
+            '図書室':        { floor: '3F', top: 23, left: 49, bubbleTop: 6, bubbleLeft: 49 },
+            'メタセコイア':  { floor: '1F', top: 20, left: 49, bubbleTop: 6, bubbleLeft: 48 },
+            'ステップ':      { floor: '1F', top: 20, left: 67, bubbleTop: 6, bubbleLeft: 67 },
+            '理科室':        { floor: '2F', top: 54, left: 16, bubbleTop: 40, bubbleLeft: 17 },
+            '体育館':        { floor: '1F', top: 88, left: 5, bubbleTop: 100, bubbleLeft: 11 },
+            '多目的集会室':  { floor: '1F', top: 60, left: 12, bubbleTop: 46, bubbleLeft: 13 },
+            '応接室':        { floor: '1F', top: 89, left: 90, bubbleTop: 76, bubbleLeft: 91 },
+            '職員トイレ':    { floor: '1F', top: 76, left: 11, bubbleTop: 76, bubbleLeft: 43 },
+        };
+
+        // 場所の表記ゆれの吸収（シート上の書き方 → 教室ボタンの data-room）
+        const ROOM_ALIASES = {
+            '第1音楽室': '音楽室',
+            '家庭科': '家庭科室',
+            'ﾒﾀｾｺｲｱ': 'メタセコイア'
+        };
+
+        // シートが読めない時に表示するデータ（空＝シートの共有を止めたら何も表示しない）
+        const FALLBACK_SHEET = [];
+
+        let scheduleData = { '5': [], '6': [] };
+        let currentPeriod = '5';
+        let currentMode = 'map';
+        let currentFloor = '2F';
+        let highestZ = 100;
+        let bubblesHidden = false; // 「全消し」中かどうか
+        let focusClass = null;   // 一覧表からタップしたクラス（このクラスの吹き出しだけ開く）
+
+        // 教室名の表記ゆれをそろえる（全角→半角、「1年1組」→「1-1」など）
+        function normalizeRoom(raw) {
+            let s = String(raw).normalize('NFKC').replace(/\s+/g, '');
+            s = s.replace(/^(\d)[‐‑‒–—―ー－−](\d)$/, '$1-$2');
+            let m = s.match(/^(\d)年(\d)組$/);
+            if (m) s = `${m[1]}-${m[2]}`;
+            m = s.match(/^(\d)\/(\d)$/);   // 「1-1」が日付化して「1/1」になった場合
+            if (m) s = `${m[1]}-${m[2]}`;
+            return ROOM_ALIASES[s] || s;
+        }
+
+        // セルの文字を取り出す（表示値 f を優先）
+        function cellText(cell) {
+            if (!cell) return '';
+            if (cell.f != null) return String(cell.f).trim();
+            if (cell.v != null) return String(cell.v).trim();
+            return '';
+        }
+
+        // HTMLとして安全な文字にする＋改行を<br>に
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        function multiline(str) {
+            return escapeHtml(str).replace(/\n/g, '<br>');
+        }
+
+        // 一覧表の並び順：クラスの授業 → ご案内
+        function sortLessons(list) {
+            return [...list].sort((a, b) => (a.kind === 'info') - (b.kind === 'info'));
+        }
+
+        // 授業内容のセルを「教科」と「内容」に分ける
+        //   例）「算数（ひきざん）\nブロックを使った操作」→ 教科「算数」/ 内容「（ひきざん）\nブロック…」
+        function splitSubject(text) {
+            const t = text.trim();
+            const m = t.match(/^([^\s（(\n]+)[\s\n]*([\s\S]*)$/);
+            if (!m) return { subject: '', desc: t };
+            return { subject: m[1], desc: m[2].trim() };
+        }
+
+        // 表（2次元配列）→ 時間目ごとの授業データに変換
+        function buildSchedule(table) {
+            const result = { '5': [], '6': [] };
+            const headerIdx = table.findIndex(r => r.some(v => String(v).trim() === '学級'));
+            if (headerIdx === -1) return result;
+            const header = table[headerIdx].map(v => String(v).normalize('NFKC').trim());
+            const clsCol = header.indexOf('学級');
+
+            header.forEach((h, col) => {
+                const m = h.match(/^(\d)時間目$/);
+                if (!m) return;
+                const period = m[1];
+                if (!result[period]) result[period] = [];
+                const placeCol = header[col - 1] === '場所' ? col - 1 : -1;
+
+                table.slice(headerIdx + 1).forEach(r => {
+                    const cls = String(r[clsCol] || '').trim();
+                    const content = String(r[col] || '').trim();
+                    if (!cls || cls.startsWith('例') || !content) return;
+                    const place = placeCol >= 0 ? String(r[placeCol] || '').trim() : '';
+                    const clsName = normalizeRoom(cls);
+                    // 学級が「1-1」の形ならクラスの授業、それ以外（応接室など）は来客向けのご案内
+                    const kind = /^\d-\d$/.test(clsName) ? 'class' : 'info';
+                    const { subject, desc } = kind === 'class'
+                        ? splitSubject(content)
+                        : { subject: 'ご案内', desc: content };
+                    const room = normalizeRoom(place || cls);
+                    result[period].push({
+                        kind,
+                        cls: clsName,
+                        place: /^\d-\d$/.test(room) ? room : (place || cls),
+                        room,
+                        subject,
+                        desc
+                    });
+                });
+            });
+            return result;
+        }
+
+        // スプレッドシートの読み込み（読めなければ FALLBACK_SHEET のまま）
+        async function fetchSpreadsheetData() {
+            try {
+                const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${SHEET_GID}&headers=0`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTPエラー: ${response.status}`);
+                const text = await response.text();
+                const jsonStart = text.indexOf('{');
+                const jsonEnd = text.lastIndexOf('}') + 1;
+                if (jsonStart === -1 || jsonEnd === 0) throw new Error('データの形式が不正です（共有設定を確認してください）');
+                const data = JSON.parse(text.substring(jsonStart, jsonEnd));
+                if (data.status === 'error') throw new Error(data.errors[0].detailed_message || data.errors[0].message);
+
+                // 見出しがgviz側で列ラベルに取られた場合にも対応
+                const labels = data.table.cols.map(c => (c.label || '').trim());
+                const table = data.table.rows.map(r => (r.c || []).map(cellText));
+                if (labels.some(l => l)) table.unshift(labels);
+
+                const parsed = buildSchedule(table);
+                if (parsed['5'].length + parsed['6'].length === 0) {
+                    throw new Error('「学級」の見出し行、または授業データが見つかりません');
+                }
+                scheduleData = parsed;
+                document.getElementById('load-message').classList.add('hidden');
+                updateView();
+            } catch (e) {
+                console.warn('スプレッドシート取得失敗:', e);
+                document.getElementById('load-message').textContent = '現在、授業案内は公開されていません。';
+            }
+        }
+
+        scheduleData = buildSchedule(FALLBACK_SHEET);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateView();
+            fetchSpreadsheetData();
+        });
+
+        window.addEventListener('load', () => {
+            resolveBubbleCollisions();
+        });
+
+        window.addEventListener('resize', () => {
+            if (currentMode === 'map') resolveBubbleCollisions();
+        });
+
+        // 表示更新（時間目・モード切替）
+        function updateView() {
+            const periodRadios = document.getElementsByName('period');
+            for (let radio of periodRadios) {
+                if (radio.checked) currentPeriod = radio.value;
+            }
+
+            const btn5 = document.querySelector('.period-btn-5');
+            const btn6 = document.querySelector('.period-btn-6');
+            const on = ['bg-blue-600', 'text-white'];
+            const off = ['text-slate-500'];
+            const [active, inactive] = currentPeriod === '5' ? [btn5, btn6] : [btn6, btn5];
+            active.classList.remove(...off);  active.classList.add(...on);
+            inactive.classList.remove(...on); inactive.classList.add(...off);
+
+            if (currentMode === 'list') {
+                renderList();
+            } else {
+                updateMapHighlights();
+            }
+        }
+
+        // 表示切り替え（'3F' / '2F' / '1F' / 'LIST'）
+        function setFloor(floor, focus = null) {
+            focusClass = focus;
+            const isList = floor === 'LIST';
+            currentMode = isList ? 'list' : 'map';
+            if (!isList) currentFloor = floor;
+
+            ['3F', '2F', '1F', 'LIST'].forEach(f => {
+                const btn = document.getElementById(f === 'LIST' ? 'btn-list' : `btn-${f.toLowerCase()}`);
+                if (f === floor) {
+                    btn.classList.remove('bg-white', 'border-slate-300');
+                    btn.classList.add('bg-blue-100', 'border-blue-500', 'text-blue-700');
+                } else {
+                    btn.classList.remove('bg-blue-100', 'border-blue-500', 'text-blue-700');
+                    btn.classList.add('bg-white', 'border-slate-300');
+                }
+            });
+
+            ['1F', '2F', '3F'].forEach(f => {
+                document.getElementById(`floor-${f.toLowerCase()}`)
+                    .classList.toggle('hidden', isList || f !== floor);
+            });
+            document.getElementById('view-map').classList.toggle('hidden', isList);
+            document.getElementById('view-list').classList.toggle('hidden', !isList);
+
+            if (isList) {
+                renderList();
+                return;
+            }
+            updateMapHighlights();
+        }
+
+        // 吹き出しの開閉トグル処理
+        function toggleBubble(bubble, roomEl, forceState = null) {
+            const isCurrentlyClosed = bubble.classList.contains('is-closed');
+            const shouldOpen = forceState !== null ? forceState : isCurrentlyClosed;
+
+            if (shouldOpen) {
+                bubble.classList.remove('is-closed');
+                roomEl.classList.add('bubble-open');
+                highestZ++;
+                bubble.style.zIndex = highestZ;
+                resolveBubbleCollisions();
+                bubble.style.transform = 'translate(-50%, -50%) scale(1.04)';
+                setTimeout(() => {
+                    bubble.style.transform = 'translate(-50%, -50%) scale(1)';
+                }, 150);
+            } else {
+                bubble.classList.add('is-closed');
+                roomEl.classList.remove('bubble-open');
+                resolveBubbleCollisions();
+            }
+            updateAllBubblesButton();
+        }
+
+        // 吹き出しの重なり解消（横方向だけに動かす。縦位置は data-bubble-top のまま）
+        //   左にある吹き出しはなるべくその場に残し、右の吹き出しを右へずらす。
+        //   右端からはみ出す場合は、全体を左へ寄せ戻す。
+        function resolveBubbleCollisions() {
+            const activeFloorDiv = document.getElementById(`floor-${currentFloor.toLowerCase()}`);
+            if (!activeFloorDiv) return;
+            const container = activeFloorDiv.querySelector('.relative');
+            if (!container) return;
+
+            const containerWidth = container.offsetWidth;
+            const imgHeight = container.offsetHeight;
+            if (containerWidth === 0 || imgHeight < 50) return;
+
+            const bubbles = Array.from(container.querySelectorAll('.info-bubble:not(.is-closed)'));
+            if (bubbles.length === 0) return;
+
+            const margin = 4; // 画面端からの余白(px)
+            const gap = 6;    // 吹き出し同士の隙間(px)
+
+            const items = bubbles.map((b, i) => {
+                const w = b.offsetWidth;
+                const h = b.offsetHeight;
+                const x = (parseFloat(b.dataset.origLeft) / 100) * containerWidth;
+                // 縦位置は固定。ただし上端からはみ出さないようにだけする（0% = 画像の一番上にぴったり）
+                const y = Math.max(h / 2 + margin, (parseFloat(b.dataset.origTop) / 100) * imgHeight);
+                const minX = w / 2 + margin;
+                const maxX = containerWidth - w / 2 - margin;
+                return { el: b, i, w, h, y, x: Math.max(minX, Math.min(maxX, x)), minX, maxX };
+            });
+
+            // 同じ段（data-bubble-top が同じ値）の吹き出し同士だけで横に並べる
+            const sameRow = (a, b) => a.el.dataset.origTop === b.el.dataset.origTop;
+
+            // 左から順に並べる（同じ位置なら元の順番）
+            const sorted = [...items].sort((a, b) => a.x - b.x || a.i - b.i);
+
+            // ① 左から：重なる相手より右へ押し出す
+            for (let k = 0; k < sorted.length; k++) {
+                const cur = sorted[k];
+                for (let m = 0; m < k; m++) {
+                    const prev = sorted[m];
+                    if (!sameRow(prev, cur)) continue;
+                    const need = prev.x + (prev.w + cur.w) / 2 + gap;
+                    if (cur.x < need) cur.x = need;
+                }
+            }
+
+            // ② 右から：右端をはみ出したぶん、左へ寄せ戻す
+            for (let k = sorted.length - 1; k >= 0; k--) {
+                const cur = sorted[k];
+                if (cur.x > cur.maxX) cur.x = cur.maxX;
+                for (let m = k + 1; m < sorted.length; m++) {
+                    const next = sorted[m];
+                    if (!sameRow(next, cur)) continue;
+                    const limit = next.x - (next.w + cur.w) / 2 - gap;
+                    if (cur.x > limit) cur.x = limit;
+                }
+                if (cur.x < cur.minX) cur.x = cur.minX; // 入りきらない時は左端で止める
+            }
+
+            items.forEach(item => {
+                item.el.style.left = `${item.x}px`;
+                item.el.style.top = `${item.y}px`;
+            });
+        }
+
+        // マップの描画：クラスのボタンを「その時間に授業をしている場所」に置き、吹き出しを付ける
+        //   ・授業がないクラスは、自分の教室にうすく表示
+        //   ・同じ場所に複数クラスがいる時は、ボタンを横に並べる
+        function updateMapHighlights() {
+            if (EDIT_MODE) { renderEditMarkers(); return; }
+            const data = scheduleData[currentPeriod] || [];
+            document.querySelectorAll('.info-bubble, .room-pin').forEach(el => el.remove());
+
+            // 全クラス（5・6時間目のどちらかに出てくるクラス）
+            const allClasses = new Set();
+            Object.values(scheduleData).forEach(list => list.forEach(d => allClasses.add(d.cls)));
+
+            // 場所ごとにまとめる
+            const byLocation = {};
+            const add = (locName, entry) => {
+                if (!LOCATIONS[locName]) return;          // 座標が登録されていない場所はマップに出さない
+                (byLocation[locName] = byLocation[locName] || []).push(entry);
+            };
+            data.forEach(d => add(d.room, { cls: d.cls, lesson: d }));
+            allClasses.forEach(cls => {
+                if (!data.some(d => d.cls === cls)) add(cls, { cls, lesson: null });
+            });
+
+            const bubbleCount = {};
+            Object.entries(byLocation).forEach(([locName, entries]) => {
+                const loc = LOCATIONS[locName];
+                const container = document.querySelector(`#floor-${loc.floor.toLowerCase()} .relative`);
+                if (!container) return;
+
+                entries.sort((a, b) => a.cls.localeCompare(b.cls, 'ja', { numeric: true }));
+                entries.forEach((entry, i) => {
+                    const offset = (i - (entries.length - 1) / 2) * 9;   // 複数クラスの時の横ずらし(%)
+                    const pin = document.createElement('div');
+                    pin.className = 'room-pin';
+                    pin.textContent = entry.cls;
+                    pin.style.top = `${loc.top}%`;
+                    pin.style.left = `${loc.left + offset}%`;
+                    container.appendChild(pin);
+
+                    if (!entry.lesson) {
+                        pin.style.opacity = '0.55';
+                        return;
+                    }
+
+                    const d = entry.lesson;
+                    const isOpen = focusClass ? focusClass === d.cls : !bubblesHidden;
+                    pin.classList.add('has-class');
+                    if (d.kind === 'info') pin.classList.add('info-pin');
+                    if (isOpen) pin.classList.add('bubble-open');
+
+                    const bubble = document.createElement('div');
+                    bubble.className = 'info-bubble';
+                    bubble.dataset.origTop = `${loc.bubbleTop}%`;
+                    bubble.dataset.origLeft = `${loc.bubbleLeft + offset}%`;
+                    bubble.style.top = bubble.dataset.origTop;
+                    bubble.style.left = bubble.dataset.origLeft;
+                    bubble.style.transform = 'translate(-50%, -50%) scale(1)';
+                    const n = bubbleCount[loc.floor] = (bubbleCount[loc.floor] || 0) + 1;
+                    bubble.style.zIndex = 50 + n;
+
+                    const placeNote = d.room !== d.cls
+                        ? `<span class="text-[10px] text-slate-500 font-bold whitespace-nowrap">＠${escapeHtml(d.place)}</span>`
+                        : '';
+                    const isInfo = d.kind === 'info';
+                    bubble.innerHTML = `
+                        <div class="flex justify-between items-center gap-1.5 mb-1 pb-1 border-b ${isInfo ? 'border-amber-200' : 'border-blue-200'}">
+                            <span class="font-bold ${isInfo ? 'text-amber-800' : 'text-blue-800'} text-xs sm:text-sm whitespace-nowrap">${escapeHtml(d.cls)} ${placeNote}</span>
+                            <div class="flex items-center gap-1">
+                                <span class="text-[10px] font-bold ${isInfo ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'} px-1.5 py-0.5 rounded whitespace-nowrap">${escapeHtml(d.subject)}</span>
+                                <span class="text-slate-400 text-xs leading-none pl-0.5">×</span>
+                            </div>
+                        </div>
+                        <div class="text-slate-700 text-[11px] sm:text-xs leading-snug font-semibold">${multiline(d.desc)}</div>
+                    `;
+
+                    if (d.kind === 'info') bubble.classList.add('info-kind');
+                    if (!isOpen) bubble.classList.add('is-closed');
+                    if (focusClass === d.cls) bubble.style.zIndex = ++highestZ;
+
+                    bubble.onclick = (e) => { e.stopPropagation(); toggleBubble(bubble, pin, false); };
+                    pin.onclick = (e) => { e.stopPropagation(); toggleBubble(bubble, pin); };
+                    container.appendChild(bubble);
+                });
+            });
+
+            requestAnimationFrame(() => resolveBubbleCollisions());
+            updateAllBubblesButton();
+        }
+
+        // =====================================================
+        // 平面図画像の読み込み
+        //   ① HTMLと同じフォルダにある「1F.png」「2F.png」「3F.png」
+        //   ② なければGoogleドライブから（URL形式を順番に試す）
+        // =====================================================
+        const DRIVE_IMAGE_URLS = [
+            id => `https://lh3.googleusercontent.com/d/${id}=w1000`,
+            id => `https://drive.google.com/thumbnail?id=${id}&sz=w1000`,
+            id => `https://drive.google.com/uc?export=view&id=${id}`
+        ];
+        document.querySelectorAll('img[data-drive-id]').forEach(img => {
+            const id = img.dataset.driveId;
+            const candidates = [
+                ...(img.dataset.local ? [img.dataset.local] : []),
+                ...DRIVE_IMAGE_URLS.map(f => f(id))
+            ];
+            let tryIndex = 0;
+            img.addEventListener('error', () => {
+                tryIndex++;
+                if (tryIndex < candidates.length) {
+                    img.src = candidates[tryIndex];
+                } else {
+                    console.warn(`平面図を表示できませんでした（${img.alt}）`);
+                    img.alt = '平面図を読み込めませんでした';
+                }
+            });
+            img.src = candidates[0];
+        });
+
+        document.querySelectorAll('.map-image').forEach(img => {
+            img.addEventListener('load', () => {
+                if (currentMode === 'map') resolveBubbleCollisions();
+            });
+        });
+
+        // =====================================================
+        // 位置調整モード
+        // =====================================================
+        function renderEditMarkers() {
+            document.querySelectorAll('.info-bubble, .room-pin, .edit-pin, .edit-bubble').forEach(el => el.remove());
+            document.getElementById('edit-panel').classList.remove('hidden');
+
+            Object.entries(LOCATIONS).forEach(([name, loc]) => {
+                const container = document.querySelector(`#floor-${loc.floor.toLowerCase()} .relative`);
+                if (!container) return;
+
+                const bubble = document.createElement('div');
+                bubble.className = 'edit-bubble';
+                bubble.textContent = name;
+                container.appendChild(bubble);
+
+                const pin = document.createElement('div');
+                pin.className = 'edit-pin';
+                pin.textContent = name;
+                container.appendChild(pin);
+
+                const place = () => {
+                    pin.style.top = `${loc.top}%`;
+                    pin.style.left = `${loc.left}%`;
+                    bubble.style.top = `${loc.bubbleTop}%`;
+                    bubble.style.left = `${loc.bubbleLeft}%`;
+                };
+                place();
+                makeDraggable(pin, container, name, loc, 'top', 'left', place);
+                makeDraggable(bubble, container, name, loc, 'bubbleTop', 'bubbleLeft', place);
+            });
+            updateEditOutput();
+        }
+
+        function makeDraggable(el, container, name, loc, topKey, leftKey, place) {
+            el.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                el.setPointerCapture(e.pointerId);
+                el.classList.add('dragging');
+
+                const move = (ev) => {
+                    const rect = container.getBoundingClientRect();
+                    const x = (ev.clientX - rect.left) / rect.width * 100;
+                    const y = (ev.clientY - rect.top) / rect.height * 100;
+                    loc[leftKey] = Math.round(Math.max(0, Math.min(100, x)));
+                    loc[topKey] = Math.round(Math.max(0, Math.min(150, y)));
+                    place();
+                    const kind = topKey === 'top' ? 'ボタン' : '吹き出し';
+                    document.getElementById('edit-status').textContent =
+                        `${name} の${kind}：top ${loc[topKey]} / left ${loc[leftKey]}`;
+                };
+                const up = () => {
+                    el.classList.remove('dragging');
+                    el.removeEventListener('pointermove', move);
+                    el.removeEventListener('pointerup', up);
+                    el.removeEventListener('pointercancel', up);
+                    updateEditOutput();
+                };
+                el.addEventListener('pointermove', move);
+                el.addEventListener('pointerup', up);
+                el.addEventListener('pointercancel', up);
+            });
+        }
+
+        function updateEditOutput() {
+            const width = t => [...t].reduce((n, c) => n + (c.charCodeAt(0) > 0xff ? 2 : 1), 0);
+            const lines = Object.entries(LOCATIONS).map(([name, l]) => {
+                const key = `'${name}':`;
+                return `            ${key}${' '.repeat(Math.max(1, 17 - width(key)))}{ floor: '${l.floor}', top: ${l.top}, left: ${l.left}, bubbleTop: ${l.bubbleTop}, bubbleLeft: ${l.bubbleLeft} },`;
+            });
+            document.getElementById('edit-output').value =
+                `        const LOCATIONS = {\n${lines.join('\n')}\n        };`;
+        }
+
+        function copyLocations() {
+            const ta = document.getElementById('edit-output');
+            const status = document.getElementById('edit-status');
+            ta.focus();
+            ta.select();
+            let ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+            status.textContent = ok
+                ? 'コピーしました'
+                : '選択した状態にしました。Ctrl + C でコピーしてください';
+        }
+
+        // =====================================================
+        // スワイプ操作
+        //   左右：5時間目 ⇔ 6時間目
+        //   上下：3F → 2F → 1F → 一覧表（上へスワイプで下の項目へ、下へスワイプで上の項目へ）
+        //   ・地図の上ではページはスクロールしない
+        //   ・一覧表では、いちばん上までスクロールしている時だけ下スワイプで1Fに戻る
+        // =====================================================
+        const VIEW_ORDER = ['3F', '2F', '1F', 'LIST'];
+        const VIEW_LABEL = { '3F': '3F', '2F': '2F', '1F': '1F', 'LIST': '一覧表' };
+        let toastTimer = null;
+
+        function showToast(text) {
+            const t = document.getElementById('swipe-toast');
+            t.textContent = text;
+            t.classList.remove('opacity-0');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => t.classList.add('opacity-0'), 600);
+        }
+
+        function switchPeriod(period) {
+            if (period === currentPeriod) return;
+            document.querySelector(`input[name="period"][value="${period}"]`).checked = true;
+            focusClass = null;
+            updateView();
+            showToast(`${period}時間目`);
+        }
+
+        function switchView(step) {
+            const now = currentMode === 'list' ? 'LIST' : currentFloor;
+            const next = VIEW_ORDER[VIEW_ORDER.indexOf(now) + step];
+            if (!next) return;
+            setFloor(next);
+            window.scrollTo({ top: 0 });
+            showToast(VIEW_LABEL[next]);
+        }
+
+        // ページがピンチで拡大されているか
+        function isZoomed() {
+            return window.visualViewport ? window.visualViewport.scale > 1.05 : false;
+        }
+
+        // 地図の上の指の操作：
+        //   拡大していない時 → ピンチだけブラウザに任せ、1本指はスワイプ用（ページはスクロールしない）
+        //   拡大している時   → 全部ブラウザに任せる（1本指で拡大した画面を動かせる）
+        function updateMapTouchAction() {
+            document.getElementById('map-container').style.touchAction = isZoomed() ? 'auto' : 'pinch-zoom';
+        }
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', updateMapTouchAction);
+        }
+
+        (function setupSwipe() {
+            let sx = 0, sy = 0, st = 0, tracking = false;
+            const area = document.querySelector('main');
+
+            // 2本目の指が置かれたら（ピンチ）、その操作はスワイプとして扱わない
+            area.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 1) tracking = false;
+            }, { passive: true });
+
+            area.addEventListener('touchstart', (e) => {
+                if (EDIT_MODE || e.touches.length !== 1 || isZoomed()) { tracking = false; return; }
+                sx = e.touches[0].clientX;
+                sy = e.touches[0].clientY;
+                st = Date.now();
+                tracking = true;
+            }, { passive: true });
+
+            area.addEventListener('touchend', (e) => {
+                if (!tracking) return;
+                tracking = false;
+                if (isZoomed()) return;   // 拡大中はスワイプで切り替えない
+                const dx = e.changedTouches[0].clientX - sx;
+                const dy = e.changedTouches[0].clientY - sy;
+                const dt = Date.now() - st;
+                const MIN = 50;              // これ以上動いたらスワイプとみなす(px)
+                if (dt > 800) return;        // ゆっくりした動きはスワイプ扱いしない
+
+                if (Math.abs(dx) > MIN && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                    switchPeriod(dx < 0 ? '6' : '5');   // 左へ→6時間目、右へ→5時間目
+                } else if (Math.abs(dy) > MIN && Math.abs(dy) > Math.abs(dx) * 1.5) {
+                    if (currentMode === 'list') {
+                        // 一覧表はスクロール優先。いちばん上で下へスワイプした時だけ1Fへ
+                        if (dy > 0 && window.scrollY <= 0) switchView(-1);
+                        return;
+                    }
+                    switchView(dy < 0 ? 1 : -1);        // 上へ→次（下の階）、下へ→前（上の階）
+                }
+            }, { passive: true });
+        })();
+
+        // 「全消し」「全表示」ボタン
+        //   今見ている階に、開いている吹き出しが1つでもあれば「全消し」
+        //   全部閉じている時だけ「全表示」
+        function openBubblesOnCurrentFloor() {
+            const floorDiv = document.getElementById(`floor-${currentFloor.toLowerCase()}`);
+            return floorDiv ? floorDiv.querySelectorAll('.info-bubble:not(.is-closed)').length : 0;
+        }
+
+        function updateAllBubblesButton() {
+            const btn = document.getElementById('btn-all-bubbles');
+            btn.textContent = openBubblesOnCurrentFloor() > 0 ? '全消し' : '全表示';
+        }
+
+        function toggleAllBubbles() {
+            setAllBubbles(openBubblesOnCurrentFloor() === 0);
+        }
+
+        function setAllBubbles(show) {
+            bubblesHidden = !show;
+            focusClass = null;
+            document.querySelectorAll('.info-bubble').forEach(b => b.classList.toggle('is-closed', !show));
+            document.querySelectorAll('.room-pin.has-class').forEach(p => p.classList.toggle('bubble-open', show));
+            if (currentMode === 'map') resolveBubbleCollisions();
+            updateAllBubblesButton();
+        }
+
+        // 一覧表の行をタップ → その授業の階に切り替え、その授業の吹き出しだけ開く
+        function focusLesson(item) {
+            const loc = LOCATIONS[item.room];
+            if (!loc) return;
+            setFloor(loc.floor, item.cls);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // 一覧表の表示（選択中の時間目の授業を、学級・場所・授業内容で並べる）
+        function renderList() {
+            const tbody = document.getElementById('list-body');
+            const msg = document.getElementById('list-message');
+            tbody.innerHTML = '';
+            msg.textContent = '';
+
+            const data = sortLessons(scheduleData[currentPeriod] || []);
+            data.forEach(item => {
+                const tr = document.createElement('tr');
+                const loc = LOCATIONS[item.room];
+                if (loc) {
+                    tr.className = 'cursor-pointer hover:bg-blue-50 active:bg-blue-100';
+                    tr.onclick = () => focusLesson(item);
+                }
+                const floorNote = loc
+                    ? `<div class="text-[10px] text-slate-400 mt-0.5">${loc.floor} ▶</div>`
+                    : `<div class="text-[10px] text-slate-400 mt-0.5">地図なし</div>`;
+                tr.innerHTML = `
+                    <td class="px-2 py-3 break-words font-bold ${item.kind === 'info' ? 'text-amber-700' : 'text-blue-700'} align-top">${escapeHtml(item.cls)}</td>
+                    <td class="px-2 py-3 break-words font-semibold align-top">${escapeHtml(item.place)}${floorNote}</td>
+                    <td class="px-2 py-3 break-words text-slate-700 leading-relaxed align-top">
+                        <span class="text-xs font-bold ${item.kind === 'info' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'} px-1.5 py-0.5 rounded">${escapeHtml(item.subject)}</span>
+                        <div class="mt-1">${multiline(item.desc)}</div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            if (data.length === 0) msg.textContent = 'この時間の授業はありません。';
+        }
+    </script>
+</body>
+</html>
